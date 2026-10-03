@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>bibeksec · GOD'S-EYE NEPAL</title>
+<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
+<script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+<style>
+:root{--bg:#05090f;--pn:rgba(8,18,30,.88);--tx:#cfe3f2;--mu:#6d8aa3;--bd:#16344d;--ac:#22d3ee;--rd:#ff3b5c}
+*{box-sizing:border-box}html,body{height:100%;margin:0;background:var(--bg);color:var(--tx);font:12px/1.4 ui-monospace,Menlo,monospace}
+#map{position:absolute;inset:0}
+.pn{position:absolute;background:var(--pn);border:1px solid var(--bd);border-radius:6px;padding:10px;backdrop-filter:blur(6px);z-index:5}
+#top{top:10px;left:10px;right:10px;display:flex;gap:16px;align-items:center;flex-wrap:wrap}
+.logo{font-weight:800;letter-spacing:.14em;color:var(--ac)}.logo small{color:var(--mu);letter-spacing:.05em;font-weight:400}
+.st{text-align:center}.st b{display:block;font-size:17px}.st span{font-size:9px;color:var(--mu);letter-spacing:.1em}.sp{flex:1}
+#left{top:70px;left:10px;width:200px;max-height:calc(100% - 80px);overflow:auto}
+#right{top:70px;right:10px;width:240px;max-height:calc(100% - 80px);overflow:auto}
+h3{margin:10px 0 6px;font-size:10px;letter-spacing:.16em;color:var(--mu)}h3:first-child{margin-top:0}
+label{display:flex;gap:7px;align-items:center;padding:2px 0;cursor:pointer}.d{width:9px;height:9px;border-radius:50%}
+button,select,input[type=text]{background:transparent;color:var(--ac);border:1px solid var(--ac);border-radius:4px;padding:5px 7px;font:inherit;cursor:pointer;margin:2px 2px 2px 0}
+select{background:#08121e}input[type=text]{color:var(--tx);width:100%;cursor:text}
+button:hover{background:rgba(34,211,238,.14)}button.on{background:var(--ac);color:#000}
+.pv{padding:4px 6px;border-radius:4px;cursor:pointer;display:flex;justify-content:space-between}.pv:hover{background:rgba(34,211,238,.13)}
+#feed div{padding:2px 0;border-bottom:1px solid var(--bd)}
+.maplibregl-popup-content{background:#0a1522;color:var(--tx);border:1px solid var(--bd);font:12px ui-monospace,monospace}
+.maplibregl-popup-tip{display:none}
+@media(max-width:800px){#left,#right{display:none}}
+#bot{left:220px;right:260px;bottom:10px;height:225px;overflow:auto}#tabs button{margin:0 4px 6px 0}.r{display:flex;justify-content:space-between;gap:8px;padding:2px 4px;cursor:pointer;border-bottom:1px solid var(--bd)}
+@media(max-width:800px){#bot{left:10px;right:10px}}</style></head><body>
+<div id="map"></div>
+<div class="pn" id="top"><span class="logo">🇳🇵 bibeksec <small>· GOD'S-EYE NEPAL</small></span><span class="sp"></span>
+<div class="st"><b id="s1">0</b><span>EVENTS</span></div><div class="st"><b id="s2">0</b><span>PER MIN</span></div><div class="st"><b id="s3" style="color:var(--rd)">0</b><span>ALERTS</span></div><div class="st"><b id="clk">--</b><span>NPT</span></div>
+<span id="mode" style="border:1px solid var(--bd);padding:3px 8px;border-radius:4px;color:var(--mu)">SIMULATED</span><button id="live" class="on">● LIVE</button></div>
+<div class="pn" id="left">
+<h3>BASEMAP</h3><select id="bm"><option value="dark">Dark</option><option value="osm">Streets (OSM)</option><option value="sat">Satellite</option></select>
+<h3>SEARCH</h3><input type="text" id="q" placeholder="city or province + Enter">
+<h3>LAYERS</h3><div id="lay"></div>
+<h3>VIEW</h3><button id="fit">Fit Nepal</button><button id="p3">3D tilt</button><button id="lk">Lock bounds</button><button id="tour">Auto-tour</button><button id="me">My location</button>
+<h3>SPEED</h3><input type="range" id="spd" min="1" max="10" value="4" style="width:100%">
+<h3>PROVINCES</h3><div id="pl"></div></div>
+<div class="pn" id="right"><h3>INTEL · <span id="pt">NEPAL</span></h3><div id="intel"></div><h3>LIVE EVENTS</h3><div id="feed"></div><h3>AI ANALYST</h3><button id="an">ANALYZE</button><div id="ai" style="white-space:pre-wrap;margin-top:6px;color:var(--mu)">Rule-based summary of demo data.</div></div>
+<div class="pn" id="bot"><div id="tabs"><button data-t="traffic" class="on" onclick="setTab('traffic')">TRAFFIC</button><button data-t="devices" onclick="setTab('devices')">DEVICES</button><button data-t="alerts" onclick="setTab('alerts')">ALERTS <b id="alc">0</b></button><button data-t="audit" onclick="setTab('audit')">AUDIT</button><label style="display:inline-flex;border:1px solid var(--ac);border-radius:4px;padding:5px 7px;color:var(--ac)">Import flows (.json/.csv)<input id="up" type="file" accept=".json,.csv" hidden></label></div><div id="tb"></div></div>
+<script>
+const T={cyber:["Threat","#ff3b5c"],infra:["Infrastructure","#38bdf8"],net:["Network","#c084fc"],vuln:["Vulnerability","#fb923c"],sensor:["Own sensor","#4ade80"],out:["Outage","#facc15"]};
+// Approximate province outlines [lon,lat]. For production, set PROV_URL to an official GeoJSON (e.g. Nepal Survey Dept / HDX) with a "name" property.
+const PROV_URL="";
+const PR={Koshi:[[86.1,28.05],[86.5,28.1],[87.2,27.9],[88.2,27.9],[88.1,27.3],[88,26.5],[87.3,26.4],[86.8,26.5],[86.4,26.95],[85.8,27.2],[86.2,27.6]],
+Madhesh:[[84.4,27.35],[85,27.1],[85.8,27.2],[86.4,26.95],[86.8,26.5],[86.1,26.5],[85.3,26.7],[84.6,26.8],[84,27.2],[83.9,27.5]],
+Bagmati:[[85,28.6],[85.5,28.35],[86.1,28.05],[86.2,27.6],[85.8,27.2],[85,27.1],[84.4,27.35],[84.9,28]],
+Gandaki:[[83.5,29.4],[84.2,29.3],[85,28.6],[84.9,28],[84.4,27.35],[83.9,27.5],[83.7,27.9],[83.4,28.5],[83.3,28.9]],
+Lumbini:[[81.2,28.4],[81.6,28.9],[81.7,28.6],[82.2,28.55],[82.7,28.8],[83.3,28.9],[83.4,28.5],[83.7,27.9],[83.9,27.5],[83.3,27.35],[82.7,27.5],[82,28],[81.5,28.15]],
+Karnali:[[81.1,30.2],[81.9,30.35],[82.8,29.9],[83.5,29.4],[83.3,28.9],[82.7,28.8],[82.2,28.55],[81.7,28.6],[81.6,28.9],[81.8,29.3],[81.5,29.7]],
+Sudurpashchim:[[80.06,29.85],[80.5,30.4],[81.1,30.2],[81.5,29.7],[81.8,29.3],[81.6,28.9],[81.2,28.4],[80.6,28.5],[80.05,28.8]]};
+const CITY=[["Kathmandu",85.32,27.71,"Bagmati",5],["Pokhara",83.98,28.21,"Gandaki",3],["Biratnagar",87.28,26.45,"Koshi",2],["Birgunj",84.88,27.01,"Madhesh",2],["Janakpur",85.93,26.73,"Madhesh",1],["Butwal",83.45,27.7,"Lumbini",2],["Nepalgunj",81.62,28.05,"Lumbini",1],["Surkhet",81.62,28.6,"Karnali",1],["Dhangadhi",80.59,28.69,"Sudurpashchim",1],["Dharan",87.28,26.81,"Koshi",1]];
+const $=id=>document.getElementById(id),NEP=[[79.9,26.3],[88.3,30.5]];
+const ras=(t,a)=>({type:"raster",tiles:t,tileSize:256,attribution:a});
+const map=new maplibregl.Map({container:"map",center:[84.1,28.4],zoom:6.2,maxBounds:[[77,24.5],[91,32.5]],
+style:{version:8,sources:{dark:ras(["https://basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png"],"© OpenStreetMap © CARTO"),osm:ras(["https://tile.openstreetmap.org/{z}/{x}/{y}.png"],"© OpenStreetMap"),sat:ras(["https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"],"Esri")},
+layers:["dark","osm","sat"].map(k=>({id:k,type:"raster",source:k,layout:{visibility:k=="dark"?"visible":"none"}}))}});
+map.addControl(new maplibregl.NavigationControl(),"bottom-right");map.addControl(new maplibregl.ScaleControl());
+const inside=(p,q)=>{let r=false;for(let i=0,j=q.length-1;i<q.length;j=i++){const a=q[i],b=q[j];if((a[1]>p[1])!=(b[1]>p[1])&&p[0]<(b[0]-a[0])*(p[1]-a[1])/(b[1]-a[1])+a[0])r=!r}return r};
+const on={};Object.keys(T).forEach(k=>on[k]=true);let sel=null,F=[],n=0,live=true,heatOn=true;
+const WS_URL=""; // wss://your-collector/events  -> sends JSON {lon,lat,type,src,conf,ts,src_lon?,src_lat?,id?,city?}
+let wsLive=false,arcs=[],pulses=[];
+const SRC=["public-scan","own-sensor","dns-feed","bgp-feed","advisory"];
+function mk(){const bag=[];CITY.forEach(c=>{for(let i=0;i<c[4];i++)bag.push(c)});const c=bag[Math.random()*bag.length|0];let p=[c[1],c[2]];
+for(let i=0;i<30;i++){const q=[c[1]+(Math.random()-.5)*.5,c[2]+(Math.random()-.5)*.4];if(inside(q,PR[c[3]])){p=q;break}}
+const w=["cyber","cyber","cyber","infra","infra","net","net","vuln","sensor","out","out"],t=w[Math.random()*w.length|0];
+return{type:"Feature",geometry:{type:"Point",coordinates:p},properties:{id:"EV-"+(1000+n++),type:t,prov:c[3],city:c[0],src:SRC[Math.random()*5|0],conf:+(.55+Math.random()*.44).toFixed(2),ts:Date.now()}}}
+function filt(){const ts=Object.keys(on).filter(k=>on[k]),f=["all",["in",["get","type"],["literal",ts]]];if(sel)f.push(["==",["get","prov"],sel]);return f}
+function push(){if(F.length>500)F.shift();map.getSource("ev").setData({type:"FeatureCollection",features:F})}
+function edge(){const r=Math.random();return r<.45?[79.9+Math.random()*8.4,31.3]:r<.85?[79.5+Math.random()*9,25.4]:[Math.random()<.5?78.6:89.4,26+Math.random()*4.5]}
+function ingest(f){F.push(f);push();const p=f.properties,c=f.geometry.coordinates,t=performance.now(),col=T[p.type][1];pulses.push({c,col,t});
+if(p.type=="cyber"||p.type=="vuln")arcs.push({s:p.sll||edge(),d:c,col,t});
+const d=document.createElement("div");d.innerHTML=`<span style="color:var(--mu)">${new Date(p.ts).toLocaleTimeString("en-GB",{timeZone:"Asia/Kathmandu"})}</span> <span style="color:${col}">● ${T[p.type][0]}</span> ${p.city}`;$("feed").prepend(d);if($("feed").children.length>30)$("feed").lastChild.remove();stats()}
+function add(){ingest(mk())}
+function norm(d){if(d.kind=="flow")return ingestFlow(d);if(!live||typeof d.lon!="number"||typeof d.lat!="number")return;const p=[d.lon,d.lat],k=Object.keys(PR).find(k=>inside(p,PR[k]));if(!k)return;
+ingest({type:"Feature",geometry:{type:"Point",coordinates:p},properties:{id:d.id||"EV-"+(1000+n++),type:T[d.type]?d.type:"net",prov:k,city:d.city||k,src:d.src||"feed",conf:d.conf??.7,ts:d.ts||Date.now(),sll:d.src_lon!=null?[d.src_lon,d.src_lat]:null}})}
+function setMode(b){wsLive=b;$("mode").textContent=b?"REAL FEED":(WS_URL?"CONNECTING…":"SIMULATED");$("mode").style.color=b?"#4ade80":"var(--mu)"}
+function connect(){if(!WS_URL)return;setMode(false);const w=window.WSK=new WebSocket(WS_URL);w.onopen=()=>setMode(true);w.onclose=()=>{setMode(false);setTimeout(connect,4000)};w.onmessage=m=>{try{const d=JSON.parse(m.data);(Array.isArray(d)?d:[d]).forEach(norm)}catch(e){}}}
+function frame(now){arcs=arcs.filter(a=>now-a.t<2300);pulses=pulses.filter(p=>now-p.t<2200);
+const A=arcs.map(a=>{const hd=Math.min(1,(now-a.t)/1800),tl=Math.max(0,hd-.4),mx=(a.s[0]+a.d[0])/2,my=(a.s[1]+a.d[1])/2+Math.abs(a.s[1]-a.d[1])*.35+.5,pts=[];
+for(let i=0;i<=14;i++){const t=tl+(hd-tl)*i/14,q=1-t;pts.push([q*q*a.s[0]+2*q*t*mx+t*t*a.d[0],q*q*a.s[1]+2*q*t*my+t*t*a.d[1]])}
+return{type:"Feature",properties:{c:a.col,o:Math.min(1,(2300-(now-a.t))/500)},geometry:{type:"LineString",coordinates:pts}}});
+const P=pulses.map(p=>{const u=(now-p.t)/2200;return{type:"Feature",properties:{c:p.col,r:5+u*45,o:1-u},geometry:{type:"Point",coordinates:p.c}}});
+map.getSource("arcs").setData({type:"FeatureCollection",features:A});map.getSource("pulse").setData({type:"FeatureCollection",features:P});requestAnimationFrame(frame)}
+function stats(){const now=Date.now(),v=F.filter(f=>!sel||f.properties.prov==sel);$("s1").textContent=F.length;$("s2").textContent=F.filter(f=>now-f.properties.ts<60000).length;$("s3").textContent=F.filter(f=>f.properties.type=="cyber"&&f.properties.conf>.85).length;
+const c={};v.forEach(f=>c[f.properties.type]=(c[f.properties.type]||0)+1);$("intel").innerHTML=Object.keys(T).map(k=>`<div style="display:flex;justify-content:space-between"><span style="color:${T[k][1]}">● ${T[k][0]}</span><b>${c[k]||0}</b></div>`).join("");
+const by={};F.forEach(f=>by[f.properties.prov]=(by[f.properties.prov]||0)+1);const m=Math.max(...Object.values(by),1),ex=["match",["get","name"]];Object.keys(PR).forEach(k=>ex.push(k,.05+.4*(by[k]||0)/m));ex.push(.05);map.setPaintProperty("pf","fill-opacity",ex)}
+async function load(){let fc;if(PROV_URL){try{fc=await(await fetch(PROV_URL)).json()}catch(e){}}
+if(!fc)fc={type:"FeatureCollection",features:Object.keys(PR).map(k=>({type:"Feature",properties:{name:k},geometry:{type:"Polygon",coordinates:[PR[k].concat([PR[k][0]])]}}))};
+map.addSource("prov",{type:"geojson",data:fc});map.addSource("ev",{type:"geojson",data:{type:"FeatureCollection",features:[]}});
+map.addLayer({id:"pf",type:"fill",source:"prov",paint:{"fill-color":"#22d3ee","fill-opacity":.08}});
+map.addLayer({id:"pl",type:"line",source:"prov",paint:{"line-color":"#22d3ee","line-width":1.6}});
+map.addLayer({id:"heat",type:"heatmap",source:"ev",paint:{"heatmap-weight":["get","conf"],"heatmap-radius":["interpolate",["linear"],["zoom"],5,18,10,50],"heatmap-opacity":.7,"heatmap-color":["interpolate",["linear"],["heatmap-density"],0,"rgba(0,0,0,0)",.3,"rgba(34,211,238,.5)",.6,"rgba(250,204,21,.8)",1,"rgba(255,59,92,.95)"]}});
+const col=["match",["get","type"]];Object.keys(T).forEach(k=>col.push(k,T[k][1]));col.push("#fff");
+map.addLayer({id:"pts",type:"circle",source:"ev",paint:{"circle-color":col,"circle-radius":["interpolate",["linear"],["zoom"],5,3.5,12,9],"circle-stroke-color":"#fff","circle-stroke-width":1}});
+map.addLayer({id:"lbl",type:"symbol",source:"prov",layout:{"text-field":["get","name"],"text-size":12},paint:{"text-color":"#fff","text-halo-color":"#000","text-halo-width":1.5}});
+map.addSource("arcs",{type:"geojson",data:{type:"FeatureCollection",features:[]}});map.addSource("pulse",{type:"geojson",data:{type:"FeatureCollection",features:[]}});
+map.addLayer({id:"arcs",type:"line",source:"arcs",layout:{"line-cap":"round"},paint:{"line-color":["get","c"],"line-width":3,"line-blur":1.5,"line-opacity":["get","o"]}});
+map.addLayer({id:"pulse",type:"circle",source:"pulse",paint:{"circle-color":"rgba(0,0,0,0)","circle-radius":["get","r"],"circle-stroke-color":["get","c"],"circle-stroke-width":2,"circle-stroke-opacity":["get","o"]}});
+if(!WS_URL)for(let i=0;i<80;i++)F.push(mk());push();stats();requestAnimationFrame(frame);connect();
+map.on("click","pts",e=>{const p=e.features[0].properties;new maplibregl.Popup().setLngLat(e.lngLat).setHTML(`<b>${p.id}</b><br>${T[p.type][0]}<br>${p.city}, ${p.prov}<br>Source: ${p.src}<br>Confidence: ${p.conf}<br>Observed: ${new Date(+p.ts).toLocaleTimeString("en-GB",{timeZone:"Asia/Kathmandu"})} NPT<br><i>simulated</i>`).addTo(map)});
+map.on("click","pf",e=>{if(!map.queryRenderedFeatures(e.point,{layers:["pts"]}).length)pick(e.features[0].properties.name)});
+map.on("mouseenter","pts",()=>map.getCanvas().style.cursor="pointer");map.on("mouseleave","pts",()=>map.getCanvas().style.cursor="");
+tick()}
+function apply(){const f=filt();["pts","heat"].forEach(l=>map.setFilter(l,f));map.setLayoutProperty("heat","visibility",heatOn?"visible":"none");stats()}
+function pick(k){sel=k;$("pt").textContent=(k||"NEPAL").toUpperCase();apply();if(!k)return map.fitBounds(NEP,{padding:60});const ps=PR[k],b=new maplibregl.LngLatBounds(ps[0],ps[0]);ps.forEach(p=>b.extend(p));map.fitBounds(b,{padding:80,duration:1400,pitch:map.getPitch()})}
+Object.keys(T).concat(["heat"]).forEach(k=>{const l=document.createElement("label"),c=k=="heat"?"#ff3b5c":T[k][1];l.innerHTML=`<input type="checkbox" checked><span class="d" style="background:${c}"></span>${k=="heat"?"Heatmap":T[k][0]}`;l.firstChild.onchange=function(){if(k=="heat")heatOn=this.checked;else on[k]=this.checked;apply()};$("lay").appendChild(l)});
+[null,...Object.keys(PR)].forEach(k=>{const d=document.createElement("div");d.className="pv";d.textContent=k||"All Nepal";d.onclick=()=>pick(k);$("pl").appendChild(d)});
+$("bm").onchange=function(){["dark","osm","sat"].forEach(k=>map.setLayoutProperty(k,"visibility",k==this.value?"visible":"none"))};
+$("fit").onclick=()=>pick(null);$("p3").onclick=function(){const t=map.getPitch()<10;map.easeTo({pitch:t?60:0,bearing:t?-15:0,duration:900});this.classList.toggle("on",t)};
+$("lk").onclick=function(){const t=!this.classList.contains("on");this.classList.toggle("on",t);map.setMaxBounds(t?[[79,25.5],[89.5,31]]:[[77,24.5],[91,32.5]])};
+$("live").onclick=function(){live=!live;this.classList.toggle("on",live);this.textContent=live?"● LIVE":"❚❚ PAUSED"};
+$("q").onkeydown=e=>{if(e.key!="Enter")return;const v=e.target.value.toLowerCase(),c=CITY.find(c=>c[0].toLowerCase()==v),p=Object.keys(PR).find(k=>k.toLowerCase()==v);if(c)map.flyTo({center:[c[1],c[2]],zoom:11});else if(p)pick(p)};
+$("an").onclick=()=>{const f=F.filter(x=>!sel||x.properties.prov==sel),c={},cc={};f.forEach(x=>{c[x.properties.type]=(c[x.properties.type]||0)+1;cc[x.properties.city]=(cc[x.properties.city]||0)+1});const t=Object.keys(c).sort((a,b)=>c[b]-c[a])[0],h=Object.keys(cc).sort((a,b)=>cc[b]-cc[a])[0];
+$("ai").textContent=`Region: ${sel||"Nepal"}\nObservations: ${f.length}\nMost observed: ${t?T[t][0]+" ("+c[t]+")":"none"}\nBusiest area: ${h||"-"}\nHigh confidence: ${f.filter(x=>x.properties.conf>.9).length}`};
+function tick(){if(live&&!WS_URL)add();setTimeout(tick,2600-$("spd").value*230+Math.random()*600)}
+setInterval(()=>$("clk").textContent=new Date().toLocaleTimeString("en-GB",{timeZone:"Asia/Kathmandu"}),1000);
+let tt=null;$("tour").onclick=function(){const on2=!tt;this.classList.toggle("on",on2);if(!on2){clearInterval(tt);tt=null;return}let i=0;const ks=[null,...Object.keys(PR)];const go=()=>{pick(ks[i++%ks.length]);if(map.getPitch()<10)map.easeTo({pitch:50,duration:1200})};go();tt=setInterval(go,6500)};
+$("me").onclick=()=>navigator.geolocation&&navigator.geolocation.getCurrentPosition(p=>{const c=[p.coords.longitude,p.coords.latitude];new maplibregl.Marker({color:"#22d3ee"}).setLngLat(c).addTo(map);map.flyTo({center:c,zoom:11,pitch:45})},()=>alert("Location permission denied"));
+/* ===== DEVICES + TRAFFIC ANALYZER ===== */
+const KINDS=["sensor","honeypot","router","server","iot"],DV=[],FL=[],AUD=[],ALR=[];let tab="traffic",selD=null;
+CITY.forEach(c=>{for(let j=0;j<(c[4]>2?4:2);j++){const i=DV.length;DV.push({id:"DEV-"+String(i+1).padStart(2,"0"),name:`${KINDS[i%5]}-${c[0].slice(0,3).toLowerCase()}-${j+1}`,kind:KINDS[i%5],ip:"192.0.2."+(i+10),city:c[0],prov:c[3],c:[c[1]+(Math.random()-.5)*.14,c[2]+(Math.random()-.5)*.1],st:"online",tags:[],watch:false,seen:Date.now()})}});
+const dev=id=>DV.find(d=>d.id==id),fmt=b=>b>1e6?(b/1e6).toFixed(1)+" MB":b>1e3?(b/1e3).toFixed(1)+" KB":Math.round(b)+" B";
+function audit(a,d){AUD.unshift({ts:Date.now(),a,d:d.id+" "+d.name});if(AUD.length>60)AUD.pop()}
+function alertx(key,sev,msg,d){const now=Date.now();if(ALR.some(a=>a.key==key&&now-a.ts<30000))return;ALR.unshift({ts:now,key,sev,msg,dev:d?d.id:"-"});if(ALR.length>60)ALR.pop();
+if(d)ingest({type:"Feature",geometry:{type:"Point",coordinates:d.c},properties:{id:"AL-"+(n++),type:"cyber",prov:d.prov,city:d.city,src:"analyzer",conf:.9,ts:now}})}
+function ingestFlow(f){f.ts=f.ts||Date.now();const d=dev(f.dev);if(d){d.seen=Date.now();if(d.st=="isolated")alertx("iso"+d.id,"HIGH","Isolated device still sending traffic",d)}FL.push(f);if(FL.length>6000)FL.splice(0,1000)}
+function genFlow(){const L=DV.filter(d=>d.st=="online"||d.st=="watch");const d=L[Math.random()*L.length|0];if(!d)return;const r=Math.random();let dp=443,pr="TCP",b=Math.round(Math.exp(6+Math.random()*4));
+if(r>.5&&r<.7){dp=53;pr="UDP";b=Math.round(b/8)}else if(r<.8&&r>=.7)dp=80;else if(r<.87&&r>=.8)dp=22;else if(r<.92&&r>=.87){dp=123;pr="UDP"}else if(r>=.92)dp=[8080,1883,3389,5060][Math.random()*4|0];
+ingestFlow({ts:Date.now(),dev:d.id,src:d.ip,dst:"198.51.100."+(Math.random()*200|0),sp:49152+(Math.random()*16000|0),dp,proto:pr,bytes:b})}
+function inject(){const L=DV.filter(d=>d.st!="isolated"),d=L[Math.random()*L.length|0];if(!d)return;
+if(Math.random()<.5){const t="198.51.100."+(Math.random()*200|0);for(let i=0;i<24;i++)ingestFlow({dev:d.id,src:d.ip,dst:t,sp:50000+i,dp:1000+i*7,proto:"TCP",bytes:60})}else for(let i=0;i<30;i++)ingestFlow({dev:d.id,src:d.ip,dst:"198.51.100.77",sp:51000+i,dp:443,proto:"TCP",bytes:900000})}
+let S={bins:[],talk:[],proto:{},ports:[],rate:0};
+function analyze(){const now=Date.now(),bins=new Array(60).fill(0),tk={},pr={},pt={},last={},base={},scan={};
+for(let i=FL.length-1;i>=0;i--){const f=FL[i],a=now-f.ts;if(a>=60000)break;bins[59-(a/1000|0)]+=f.bytes;tk[f.dev]=(tk[f.dev]||0)+f.bytes;pr[f.proto]=(pr[f.proto]||0)+f.bytes;pt[f.dp]=(pt[f.dp]||0)+f.bytes;
+if(a<10000){last[f.dev]=(last[f.dev]||0)+f.bytes;const k=f.dev+">"+f.dst;(scan[k]=scan[k]||new Set()).add(f.dp)}else base[f.dev]=(base[f.dev]||0)+f.bytes}
+for(const k in last){const l=last[k]/10,b=(base[k]||0)/50;if(l>5000&&l>b*4+3000)alertx("sp"+k,"MED",`Traffic spike ${fmt(l)}/s vs baseline ${fmt(b)}/s`,dev(k))}
+for(const k in scan)if(scan[k].size>=12){const d=dev(k.split(">")[0]);alertx("sc"+k,"HIGH",`Port-scan pattern: ${scan[k].size} ports to one target in 10s`,d)}
+S={bins,talk:Object.entries(tk).sort((a,b)=>b[1]-a[1]).slice(0,6),proto:pr,ports:Object.entries(pt).sort((a,b)=>b[1]-a[1]).slice(0,6),rate:bins[59]};drawTab()}
+const T2=ms=>new Date(ms).toLocaleTimeString("en-GB",{timeZone:"Asia/Kathmandu"});
+function drawTab(){const el=$("tb");$("alc").textContent=ALR.length;
+if(tab=="traffic"){if(!$("cv")){el.innerHTML='<div style="display:grid;grid-template-columns:2fr 1fr 1fr;gap:12px"><div><div style="color:var(--mu)">THROUGHPUT 60s · <b id="rt"></b>/s</div><canvas id="cv" height="120" style="width:100%"></canvas></div><div id="tt"></div><div id="pp"></div></div>'}
+const cv=$("cv"),w=cv.width=cv.clientWidth,h=cv.height,x=cv.getContext("2d"),m=Math.max(...S.bins,1);x.clearRect(0,0,w,h);x.fillStyle="#22d3ee";S.bins.forEach((v,i)=>{const bh=v/m*(h-6);x.fillRect(i*w/60+1,h-bh,w/60-2,bh)});$("rt").textContent=fmt(S.rate);
+const tot=Object.values(S.proto).reduce((a,b)=>a+b,0)||1;
+$("tt").innerHTML='<div style="color:var(--mu)">TOP TALKERS</div>'+S.talk.map(t=>`<div class="r" onclick="selDev('${t[0]}')"><span>${dev(t[0])?dev(t[0]).name:t[0]}</span><b>${fmt(t[1])}</b></div>`).join("");
+$("pp").innerHTML='<div style="color:var(--mu)">PROTOCOLS / PORTS</div>'+Object.entries(S.proto).map(p=>`<div class="r"><span>${p[0]}</span><b>${(p[1]/tot*100).toFixed(0)}%</b></div>`).join("")+S.ports.slice(0,4).map(p=>`<div class="r"><span>port ${p[0]}</span><b>${fmt(p[1])}</b></div>`).join("")}
+else if(tab=="devices"){const d=dev(selD),L=DV.map(v=>`<div class="r" onclick="selDev('${v.id}')" style="${v.id==selD?"background:rgba(34,211,238,.15)":""}"><span>${v.id} ${v.name}</span><b style="color:${v.st=="isolated"?"#94a3b8":"#4ade80"}">${v.st}${v.watch?" ★":""}</b></div>`).join("");
+const dt=d?`<b>${d.name}</b> · ${d.kind}<br>IP ${d.ip} · ${d.city}, ${d.prov}<br>Tags: ${d.tags.join(", ")||"-"} · seen ${T2(d.seen)}<br>Traffic 60s: ${fmt(FL.filter(f=>f.dev==d.id&&Date.now()-f.ts<60000).reduce((a,f)=>a+f.bytes,0))}<br><div style="margin-top:6px"><button onclick="act('${d.id}','locate')">Locate</button><button onclick="act('${d.id}','watch')">${d.watch?"Unwatch":"Watch"}</button><button onclick="act('${d.id}','tag')">Tag</button><button onclick="act('${d.id}','${d.st=="isolated"?"release":"isolate"}')" style="color:#ff3b5c;border-color:#ff3b5c">${d.st=="isolated"?"Release":"Isolate"}</button></div><small>Commands act on your enrolled agents via the feed connection.</small>`:'<small>Select a device (list or map).</small>';
+el.innerHTML=`<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px"><div style="max-height:150px;overflow:auto">${L}</div><div>${dt}</div></div>`}
+else if(tab=="alerts")el.innerHTML=ALR.map(a=>`<div class="r"><span>${T2(a.ts)} <b style="color:${a.sev=="HIGH"?"#ff3b5c":"#fb923c"}">${a.sev}</b> ${a.dev} ${a.msg}</span></div>`).join("")||"<small>No alerts yet. Detection: traffic spikes (rate vs 50s baseline), port-scan patterns, isolated device activity.</small>";
+else el.innerHTML=AUD.map(a=>`<div class="r"><span>${T2(a.ts)} ${a.a} ${a.d}</span></div>`).join("")||"<small>No actions yet.</small>"}
+function setTab(t){tab=t;$("tb").innerHTML="";document.querySelectorAll("#tabs button").forEach(b=>b.classList.toggle("on",b.dataset.t==t));drawTab()}
+function selDev(id){selD=id;setTab("devices")}
+function act(id,a){const d=dev(id);if(!d)return;
+if(a=="locate")map.flyTo({center:d.c,zoom:11,pitch:45});
+if(a=="watch"){d.watch=!d.watch;audit(d.watch?"WATCH":"UNWATCH",d)}
+if(a=="tag"){const t=prompt("Tag for "+d.name);if(t){d.tags.push(t);audit("TAG "+t,d)}}
+if((a=="isolate"||a=="release")&&confirm(a.toUpperCase()+" "+d.name+" ("+d.ip+")? Only use on devices you own or administer.")){d.st=a=="isolate"?"isolated":"online";audit(a.toUpperCase(),d);if(window.WSK&&WSK.readyState==1)WSK.send(JSON.stringify({cmd:a,device:d.id,by:"bibeksec",ts:Date.now()}))}
+refreshDev();drawTab()}
+function refreshDev(){const s=map.getSource("dev");if(s)s.setData({type:"FeatureCollection",features:DV.map(d=>({type:"Feature",geometry:{type:"Point",coordinates:d.c},properties:{id:d.id,name:d.name,st:d.st}}))})}
+function initDev(){map.addSource("dev",{type:"geojson",data:{type:"FeatureCollection",features:[]}});
+map.addLayer({id:"dev",type:"circle",source:"dev",paint:{"circle-radius":7,"circle-color":["match",["get","st"],"isolated","#64748b","#0b1b2b"],"circle-stroke-width":2.5,"circle-stroke-color":["match",["get","st"],"isolated","#94a3b8","#4ade80"]}});
+map.on("click","dev",e=>selDev(e.features[0].properties.id));map.on("mouseenter","dev",()=>map.getCanvas().style.cursor="pointer");refreshDev()}
+$("up").onchange=async e=>{const f=e.target.files[0];if(!f)return;const t=await f.text();let a=[];try{if(f.name.endsWith(".json"))a=JSON.parse(t);else{const L=t.trim().split(/\r?\n/),h=L.shift().split(",");a=L.map(l=>{const v=l.split(","),o={};h.forEach((k,i)=>o[k.trim()]=isNaN(+v[i])?v[i]:+v[i]);return o})}}catch(x){alert("Could not parse file");return}
+a.forEach(f=>{f.proto=f.proto||"TCP";f.bytes=+f.bytes||0;ingestFlow(f)});audit("IMPORT "+a.length+" flows",{id:"-",name:f.name})};
+setInterval(()=>{if(!WS_URL&&live){const k=1+(Math.random()*3|0);for(let i=0;i<k;i++)genFlow();if(Math.random()<.012)inject()}},250);
+setInterval(analyze,1000);
+
+map.on("load",()=>{load();initDev()});
+</script></body></html>
