@@ -12,6 +12,9 @@ Nepal-only cyber + airspace situational awareness dashboard on MapLibre GL.
 - Device manager (watch/tag/isolate) for assets you own or administer
 - Traffic analyzer: throughput, top talkers, protocol/port mix, spike + port-scan detection
 - Import flow files, optional live WebSocket feed
+<img width="1909" height="931" alt="Screenshot from 2026-10-04 07-24-10" src="https://github.com/user-attachments/assets/33fb47ba-f5aa-4b3d-bda1-5cb45f18266f" />
+
+  
 
 ## Run locally
 ```bash
@@ -21,6 +24,7 @@ python3 -m http.server 8000
 
 ## Responsible use
 Only monitor devices, vehicles, and traffic you are authorized to monitor. Aircraft data is already public (ADS-B); this app does not add any new surveillance capability for aircraft, vehicles, or people.
+<img width="1919" height="932" alt="Screenshot from 2026-10-04 07-24-56" src="https://github.com/user-attachments/assets/6e500ee0-9b24-4418-92c3-ad3cea687d42" />
 
 ## License
 MIT
